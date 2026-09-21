@@ -44,14 +44,26 @@ draft_yaw_controller:
 
 gantry_sync_controller:
   ros__parameters:
-    # 上电后以低速下行。两侧各自持续低于 stall_velocity_threshold
-    # homing_stall_time_s 后，判定抵达 Pitch 最低机械限位并将该侧编码器置零。
-    # 实机验证正速度为下行，因此回零使用正速度；若接线改变，只改此处符号。
+    # ===== Pitch 最低机械限位自动回零 =====
+    # true：节点启动且 DR16 不为双下时自动回零；false：跳过回零并以启动位置为相对零点。
     auto_home: true
+
+    # true：回零期间锁住全部人工通道。Pitch 本身忽略右摇杆，Yaw 也被置为零速度。
+    # DR16 双下始终优先于此锁，会由硬件层立即清零全部电机力矩。
+    lock_manual_during_homing: true
+
+    # 回零运动方向和速度（rad/s）。当前实机正速度为向最低机械限位运动。
+    # 接线或电机反向后，仅修改正负号；绝对值决定回零速度。
     homing_velocity: 10.0
+
+    # 单侧实际速度绝对值连续低于此阈值达 homing_stall_time_s，
+    # 才判定该侧已经堵转到机械限位，并停止该侧、记录其编码器零点。
     homing_stall_time_s: 0.3
-    homing_timeout_s: 5.0
     stall_velocity_threshold: 0.05
+
+    # 安全看门狗，而非归零完成时间：两侧都未检测到机械堵转前的最大允许回零时长。
+    # 到时仍未完成会进入 fault 并停机，防止方向错误或机械故障导致持续运动。
+    homing_timeout_s: 15.0
 
     # 与 yaw 的 left.y 相同，Pitch 使用右摇杆物理横向通道 right.y。
     # 此值是共同速度目标，不是角度变化率。

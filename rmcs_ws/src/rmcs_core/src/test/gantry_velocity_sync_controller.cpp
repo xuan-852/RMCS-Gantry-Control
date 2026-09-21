@@ -37,6 +37,8 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
         get_parameter_or("auto_home", auto_home_, false);
+        get_parameter_or(
+            "lock_manual_during_homing", lock_manual_during_homing_, true);
         get_parameter_or("homing_velocity", homing_velocity_, 0.0);
         get_parameter_or("homing_stall_time_s", homing_stall_time_s_, 0.3);
         get_parameter_or("homing_timeout_s", homing_timeout_s_, 5.0);
@@ -211,7 +213,7 @@ private:
         *common_velocity_output_ = homing_velocity_;
         *sync_correction_output_ = 0.0;
         *homing_ = true;
-        *control_locked_ = true;
+        *control_locked_ = lock_manual_during_homing_;
         *fault_ = false;
 
         if (!left_homed_ || !right_homed_)
@@ -254,11 +256,12 @@ private:
         *common_velocity_output_ = 0.0;
         *sync_correction_output_ = 0.0;
         *homing_ = state_ == State::kHoming;
-        *control_locked_ = state_ == State::kHoming;
+        *control_locked_ = state_ == State::kHoming && lock_manual_during_homing_;
         *fault_ = state_ == State::kFault;
     }
 
     bool auto_home_ = false;
+    bool lock_manual_during_homing_ = true;
     double homing_velocity_ = 0.0;
     double homing_stall_time_s_ = 0.3;
     double homing_timeout_s_ = 5.0;
