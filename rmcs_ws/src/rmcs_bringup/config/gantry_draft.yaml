@@ -44,9 +44,11 @@ draft_yaw_controller:
 
 gantry_sync_controller:
   ros__parameters:
-    # 回零后两侧编码器的当前位置共同作为相对零点；正常运行不控制绝对 Pitch 角度。
-    auto_home: false
-    homing_velocity: 0.0
+    # 上电后以低速下行。两侧各自持续低于 stall_velocity_threshold
+    # homing_stall_time_s 后，判定抵达 Pitch 最低机械限位并将该侧编码器置零。
+    # 当前接线下正速度为上行，因此回零使用负速度；若实机方向相反，只改此处符号。
+    auto_home: true
+    homing_velocity: -1.0
     homing_stall_time_s: 0.3
     homing_timeout_s: 5.0
     stall_velocity_threshold: 0.05
