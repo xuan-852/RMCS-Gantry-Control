@@ -46,9 +46,9 @@ gantry_sync_controller:
   ros__parameters:
     # 上电后以低速下行。两侧各自持续低于 stall_velocity_threshold
     # homing_stall_time_s 后，判定抵达 Pitch 最低机械限位并将该侧编码器置零。
-    # 当前接线下正速度为上行，因此回零使用负速度；若实机方向相反，只改此处符号。
+    # 实机验证正速度为下行，因此回零使用正速度；若接线改变，只改此处符号。
     auto_home: true
-    homing_velocity: -5.0
+    homing_velocity: 10.0
     homing_stall_time_s: 0.3
     homing_timeout_s: 5.0
     stall_velocity_threshold: 0.05

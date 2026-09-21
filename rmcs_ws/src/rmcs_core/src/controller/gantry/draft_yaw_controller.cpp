@@ -42,6 +42,7 @@ public:
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/switch/right", switch_right_);
+        register_input("/draft/control_locked", control_locked_);
         register_output("/draft/yaw/motor/control_velocity", control_velocity_, 0.0);
 
         if (manual_velocity_scale_ < 0.0 || max_velocity_ <= 0.0
@@ -51,7 +52,8 @@ public:
 
     void update() override {
         if (!valid_parameters_ || !switch_left_.ready() || !switch_right_.ready()
-            || (!fixed_velocity_enabled_ && !joystick_left_.ready()) || !switches_enable_motion()) {
+            || !control_locked_.ready() || (!fixed_velocity_enabled_ && !joystick_left_.ready())
+            || !switches_enable_motion() || *control_locked_) {
             *control_velocity_ = 0.0;
             return;
         }
@@ -86,6 +88,7 @@ private:
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<bool> control_locked_;
     OutputInterface<double> control_velocity_;
 };
 

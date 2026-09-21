@@ -69,6 +69,8 @@ public:
         register_output("/draft/gantry/common_velocity", common_velocity_output_, 0.0);
         register_output("/draft/gantry/sync_velocity_correction", sync_correction_output_, 0.0);
         register_output("/draft/gantry/homing", homing_, false);
+        // 回零期间锁住其他人工通道，避免遥控器与自动回零同时写控制目标。
+        register_output("/draft/control_locked", control_locked_, false);
         register_output("/draft/gantry/fault", fault_, false);
 
         if (homing_stall_time_s_ < 0.0 || homing_timeout_s_ <= 0.0
@@ -189,6 +191,7 @@ private:
         *common_velocity_output_ = common_velocity;
         *sync_correction_output_ = correction;
         *homing_ = false;
+        *control_locked_ = false;
         *fault_ = false;
     }
 
@@ -208,6 +211,7 @@ private:
         *common_velocity_output_ = homing_velocity_;
         *sync_correction_output_ = 0.0;
         *homing_ = true;
+        *control_locked_ = true;
         *fault_ = false;
 
         if (!left_homed_ || !right_homed_)
@@ -250,6 +254,7 @@ private:
         *common_velocity_output_ = 0.0;
         *sync_correction_output_ = 0.0;
         *homing_ = state_ == State::kHoming;
+        *control_locked_ = state_ == State::kHoming;
         *fault_ = state_ == State::kFault;
     }
 
@@ -291,6 +296,7 @@ private:
     OutputInterface<double> common_velocity_output_;
     OutputInterface<double> sync_correction_output_;
     OutputInterface<bool> homing_;
+    OutputInterface<bool> control_locked_;
     OutputInterface<bool> fault_;
 };
 
@@ -307,6 +313,7 @@ public:
         if (log_period_ms_ <= 0)
             log_period_ms_ = 100;
         register_input("/draft/safety_enabled", safety_enabled_);
+        register_input("/draft/control_locked", control_locked_);
         register_input("/draft/gantry/common_velocity", common_velocity_);
         register_input("/draft/gantry/sync_velocity_correction", correction_);
         register_input("/draft/gantry/position_difference", position_difference_);
@@ -323,10 +330,11 @@ public:
             return;
         RCLCPP_INFO_THROTTLE(
             get_logger(), *get_clock(), log_period_ms_,
-            "Pitch sync safety=%d common_v=%.3f correction=%.3f e(L-R)=%.3f | "
+            "Pitch sync safety=%d locked=%d common_v=%.3f correction=%.3f e(L-R)=%.3f | "
             "L(v_ref=%.3f v=%.3f tau_cmd=%.3f) | "
             "R(v_ref=%.3f v=%.3f tau_cmd=%.3f)",
-            static_cast<int>(*safety_enabled_), *common_velocity_, *correction_,
+            static_cast<int>(*safety_enabled_), static_cast<int>(*control_locked_),
+            *common_velocity_, *correction_,
             *position_difference_, *left_control_velocity_, *left_velocity_,
             *left_control_torque_, *right_control_velocity_, *right_velocity_,
             *right_control_torque_);
@@ -334,13 +342,15 @@ public:
 
 private:
     bool ready() const {
-        return safety_enabled_.ready() && common_velocity_.ready() && correction_.ready()
+        return safety_enabled_.ready() && control_locked_.ready() && common_velocity_.ready()
+            && correction_.ready()
             && position_difference_.ready() && left_control_velocity_.ready()
             && right_control_velocity_.ready() && left_velocity_.ready() && right_velocity_.ready()
             && left_control_torque_.ready() && right_control_torque_.ready();
     }
 
     InputInterface<bool> safety_enabled_;
+    InputInterface<bool> control_locked_;
     InputInterface<double> common_velocity_;
     InputInterface<double> correction_;
     InputInterface<double> position_difference_;
