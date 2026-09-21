@@ -64,5 +64,10 @@
 
   <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::testing::GantryVelocitySyncController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::testing::GantryVelocitySyncLogger" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gantry::DraftYawController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
+
+  <class type="rmcs_core::hardware::Draft" base_class_type="rmcs_executor::Component" />
 </library>

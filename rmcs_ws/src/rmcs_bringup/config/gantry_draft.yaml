@@ -1,0 +1,94 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::Draft -> gantry_draft
+      - rmcs_core::controller::testing::GantryVelocitySyncController -> gantry_sync_controller
+      - rmcs_core::controller::gantry::DraftYawController -> draft_yaw_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid
+      - rmcs_core::controller::pid::PidController -> gantry_left_velocity_pid
+      - rmcs_core::controller::pid::PidController -> gantry_right_velocity_pid
+      - rmcs_core::controller::testing::GantryVelocitySyncLogger -> gantry_sync_logger
+
+gantry_draft:
+  ros__parameters:
+    board_serial: ""
+    yaw_motor_id: 1
+    pitch_right_motor_id: 2
+    pitch_left_motor_id: 3
+    remote_timeout_ms: 500
+    feedback_timeout_ms: 100
+    yaw_motor_reversed: false
+    pitch_right_motor_reversed: false
+    pitch_left_motor_reversed: false
+
+yaw_velocity_pid:
+  ros__parameters:
+    measurement: /draft/yaw/motor/velocity
+    setpoint: /draft/yaw/motor/control_velocity
+    control: /draft/yaw/motor/control_torque
+    kp: 0.30
+    ki: 0.0
+    kd: 0.0
+    output_min: -1.0
+    output_max: 1.0
+    integral_min: -0.1
+    integral_max: 0.1
+
+draft_yaw_controller:
+  ros__parameters:
+    fixed_velocity_enabled: false
+    fixed_velocity: 0.0
+    manual_velocity_scale: 10.0
+    max_velocity: 10.0
+
+gantry_sync_controller:
+  ros__parameters:
+    # 回零后两侧编码器的当前位置共同作为相对零点；正常运行不控制绝对 Pitch 角度。
+    auto_home: false
+    homing_velocity: 0.0
+    homing_stall_time_s: 0.3
+    homing_timeout_s: 5.0
+    stall_velocity_threshold: 0.05
+
+    # 与 yaw 的 left.y 相同，Pitch 使用右摇杆物理横向通道 right.y。
+    # 此值是共同速度目标，不是角度变化率。
+    manual_velocity_scale: 15.0
+    max_velocity: 15.0
+
+    # e = 左相对位置 - 右相对位置。
+    # 左领先时，左目标速度减 correction，右目标速度加 correction。
+    sync_kp: 2.0
+    sync_velocity_limit: 5.0
+
+gantry_left_velocity_pid:
+  ros__parameters:
+    measurement: /draft/gantry/left_motor/velocity
+    setpoint: /draft/gantry/left_motor/control_velocity
+    control: /draft/gantry/left_motor/control_torque
+    # 直接速度测试已验证的内环起点，与 yaw 一致。
+    kp: 0.30
+    ki: 0.0
+    kd: 0.0
+    output_min: -1.0
+    output_max: 1.0
+    integral_min: -0.1
+    integral_max: 0.1
+
+gantry_right_velocity_pid:
+  ros__parameters:
+    measurement: /draft/gantry/right_motor/velocity
+    setpoint: /draft/gantry/right_motor/control_velocity
+    control: /draft/gantry/right_motor/control_torque
+    kp: 0.30
+    ki: 0.0
+    kd: 0.0
+    output_min: -1.0
+    output_max: 1.0
+    integral_min: -0.1
+    integral_max: 0.1
+
+gantry_sync_logger:
+  ros__parameters:
+    # 调参时需要观察 e(L-R) 的衰减过程；10 Hz 足以读出时间常数。
+    log_period_ms: 100
