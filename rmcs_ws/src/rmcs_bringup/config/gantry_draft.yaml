@@ -45,16 +45,18 @@ draft_yaw_controller:
 gantry_sync_controller:
   ros__parameters:
     # ===== Pitch 最低机械限位自动回零 =====
-    # true：节点启动且 DR16 不为双下时自动回零；false：跳过回零并以启动位置为相对零点。
+    # true：节点启动且 DR16 不为双下时自动回零；false：跳过/中止回零并以当前位置为相对零点。
+    # 运行时也可执行 ros2 param set /gantry_sync_controller auto_home false 立即中止；
+    # 重新设为 true 会重新开始回零。
     auto_home: true
 
     # true：回零期间锁住全部人工通道。Pitch 本身忽略右摇杆，Yaw 也被置为零速度。
     # DR16 双下始终优先于此锁，会由硬件层立即清零全部电机力矩。
     lock_manual_during_homing: true
 
-    # 回零运动方向和速度（rad/s）。当前实机正速度为向最低机械限位运动。
+    # 回零运动方向和速度（rad/s）。当前实机负速度为向上、无弹簧的刚性机械限位运动。
     # 接线或电机反向后，仅修改正负号；绝对值决定回零速度。
-    homing_velocity: 10.0
+    homing_velocity: -10.0
 
     # 单侧实际速度绝对值连续低于此阈值达 homing_stall_time_s，
     # 才判定该侧已经堵转到机械限位，并停止该侧、记录其编码器零点。

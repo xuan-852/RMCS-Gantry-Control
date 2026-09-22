@@ -36,7 +36,9 @@ public:
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
-        get_parameter_or("auto_home", auto_home_, false);
+        bool auto_home = false;
+        get_parameter_or("auto_home", auto_home, auto_home);
+        auto_home_.store(auto_home, std::memory_order_relaxed);
         get_parameter_or(
             "lock_manual_during_homing", lock_manual_during_homing_, true);
         get_parameter_or("homing_velocity", homing_velocity_, 0.0);
@@ -82,10 +84,10 @@ public:
         }
         if (auto_home_ && std::abs(homing_velocity_) <= std::numeric_limits<double>::epsilon())
             enter_fault("auto_home is enabled but homing_velocity is zero");
-        if (state_ != State::kFault && auto_home_)
+        if (state_ != State::kFault && auto_home)
             state_ = State::kHoming;
 
-        // 同步增益用于现场辨识，允许在节点运行时修改；不会重建相对零点。
+        // 同步增益和 auto_home 都允许在节点运行时修改。
         parameter_callback_ = add_on_set_parameters_callback(
             [this](const std::vector<rclcpp::Parameter>& parameters) {
                 rcl_interfaces::msg::SetParametersResult result;
@@ -94,11 +96,24 @@ public:
                 double new_sync_kp = sync_kp_.load(std::memory_order_relaxed);
                 double new_sync_velocity_limit =
                     sync_velocity_limit_.load(std::memory_order_relaxed);
+                bool new_auto_home = auto_home_.load(std::memory_order_relaxed);
                 bool changed = false;
+                bool auto_home_changed = false;
                 for (const auto& parameter : parameters) {
                     if (parameter.get_name() != "sync_kp"
-                        && parameter.get_name() != "sync_velocity_limit")
+                        && parameter.get_name() != "sync_velocity_limit"
+                        && parameter.get_name() != "auto_home")
                         continue;
+                    if (parameter.get_name() == "auto_home") {
+                        if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_BOOL) {
+                            result.successful = false;
+                            result.reason = "auto_home must be a bool";
+                            return result;
+                        }
+                        new_auto_home = parameter.as_bool();
+                        auto_home_changed = true;
+                        continue;
+                    }
                     if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE
                         || !std::isfinite(parameter.as_double()) || parameter.as_double() < 0.0) {
                         result.successful = false;
@@ -118,11 +133,19 @@ public:
                         get_logger(), "Updated Pitch sync: kp=%.3f s^-1, correction_limit=%.3f rad/s",
                         new_sync_kp, new_sync_velocity_limit);
                 }
+                if (auto_home_changed) {
+                    auto_home_.store(new_auto_home, std::memory_order_relaxed);
+                    if (new_auto_home)
+                        homing_start_requested_.store(true, std::memory_order_relaxed);
+                    else
+                        homing_cancel_requested_.store(true, std::memory_order_relaxed);
+                }
                 return result;
             });
     }
 
     void update() override {
+        process_homing_requests();
         if (!inputs_ready() || !switches_enable_motion()) {
             stop();
             return;
@@ -154,6 +177,35 @@ private:
         using Switch = rmcs_msgs::Switch;
         return *switch_left_ != Switch::UNKNOWN && *switch_right_ != Switch::UNKNOWN
             && !(*switch_left_ == Switch::DOWN && *switch_right_ == Switch::DOWN);
+    }
+
+    void process_homing_requests() {
+        if (homing_cancel_requested_.exchange(false, std::memory_order_relaxed)) {
+            if (state_ == State::kHoming) {
+                state_ = State::kRunning;
+                reference_initialized_ = false;
+                left_homed_ = false;
+                right_homed_ = false;
+                homing_started_at_.reset();
+                left_stall_started_at_.reset();
+                right_stall_started_at_.reset();
+                stop();
+                RCLCPP_WARN(
+                    get_logger(),
+                    "Gantry homing cancelled; current Pitch positions become the new relative reference");
+            }
+        }
+        if (homing_start_requested_.exchange(false, std::memory_order_relaxed)) {
+            state_ = State::kHoming;
+            reference_initialized_ = false;
+            left_homed_ = false;
+            right_homed_ = false;
+            homing_started_at_.reset();
+            left_stall_started_at_.reset();
+            right_stall_started_at_.reset();
+            *fault_ = false;
+            RCLCPP_INFO(get_logger(), "Gantry homing requested");
+        }
     }
 
     void initialize_reference() {
@@ -260,7 +312,9 @@ private:
         *fault_ = state_ == State::kFault;
     }
 
-    bool auto_home_ = false;
+    std::atomic<bool> auto_home_{false};
+    std::atomic<bool> homing_start_requested_{false};
+    std::atomic<bool> homing_cancel_requested_{false};
     bool lock_manual_during_homing_ = true;
     double homing_velocity_ = 0.0;
     double homing_stall_time_s_ = 0.3;
